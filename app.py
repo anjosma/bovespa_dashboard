@@ -35,7 +35,7 @@ app.layout = html.Div([
 			html.Label('Período'),
 			dcc.DatePickerRange(
 				id='date-picker-range',
-				start_date=datetime.date(datetime.now()-timedelta(days=30*12*30)),
+				start_date=datetime.date(datetime.now()-timedelta(days=365)),
 				end_date=datetime.date(datetime.now())
 			),
 
@@ -58,8 +58,8 @@ app.layout = html.Div([
 					{'label': v[0], 'value': v[1]} for v in values_type
 				],
 				value="adj_close"
-			)
-		], style={'width': '48%', 'float': 'right'})
+			),
+		], style={'width': '48%', 'float': 'right', 'display': 'inline-block'})
 	]),
 	dcc.Graph(id='stocks-historical')	
 ]
