@@ -4,6 +4,7 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 
 from datetime import datetime, timedelta
+import numpy as np
 import plotly.graph_objects as go
 
 from bovespa_dashboard.connection.database import Postgres
@@ -35,7 +36,8 @@ stocks.sort()
 
 values_type_simple = [("Abertura", "open"), ("Fechamento", "close"),
 	("Mínima", "low"),("Alta", "high"), ("Volume", "volume")]
-values_type_computed = [("Diferença", "price_diff"), ("Retorno", "daily_return")]
+values_type_computed = [("Diferença", "price_diff"), ("Retorno (%)", "daily_return"),
+	("Retorno (log)", "log_return")]
 values_all = values_type_simple + values_type_computed
 values_all.sort()
 
@@ -46,7 +48,7 @@ app.layout = html.Div([
 			html.Label('Período'),
 			dcc.DatePickerRange(
 				id='date-picker-range-historical',
-				start_date=datetime.date(datetime.now()-timedelta(days=30)),
+				start_date=datetime.date(datetime.now()-timedelta(days=30*6)),
 				end_date=datetime.date(datetime.now()),
 				display_format="D/M/Y"
 			),
@@ -137,10 +139,11 @@ def updade_stocks_historical(stocks: list, start_date: str, end_date: str, value
 				SELECT date, {value_type}
 				FROM (
 					SELECT *,
-						(price_diff / close) AS daily_return
+						(price_diff / previous_close) AS daily_return,
+						ln(close) - ln(previous_close) as log_return
 					FROM
 					(SELECT *,
-							(previous_close - close) AS price_diff
+							(close - previous_close) AS price_diff
 					FROM
 						(SELECT *,
 								LAG(close, 1) over() AS previous_close
@@ -158,19 +161,31 @@ def updade_stocks_historical(stocks: list, start_date: str, end_date: str, value
 		
 		cursor.execute(formatted)
 		result = database_result_to_named_tuple(cursor)
+		result_value_type = getattr(result, value_type)
 
 		if value_type in [l[1] for l in values_type_simple]:
 			fig.add_trace(
 				go.Scatter(
-					x=result.date, y=getattr(result, value_type), 
+					x=result.date, y=result_value_type, 
 					mode="lines", name=stock, connectgaps=False)
 			)
 		else:
 			fig.add_trace(
 				go.Waterfall(
 					name=stock,
-					x=result.date, y=getattr(result, value_type),
-
+					x=result.date, y=result_value_type,
+				)
+			)
+			fig.add_shape(
+				type="line",
+				x0=0,
+				x1=len(result_value_type),
+				y0=0,
+				y1=0,
+				line=dict(
+					color="LightGrey",
+					width=1.25,
+					dash="dashdot"
 				)
 			)
 	return fig.update_layout(
